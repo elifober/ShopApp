@@ -1,5 +1,2 @@
-wheel==0.46.3
-fastapi
-uvicorn[standard]
-sqlalchemy
-psycopg2-binary
+fastapi>=0.115.0,<1
+uvicorn[standard]>=0.30.0,<1

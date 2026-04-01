@@ -1,3 +1,4 @@
+import os
 import random
 import sqlite3
 from pathlib import Path
@@ -8,7 +9,42 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = (BASE_DIR / "../../shop.db").resolve()
+DATA_DIR = BASE_DIR / "data"
+
+
+def resolve_db_path() -> Path:
+    override = os.environ.get("SHOP_DB_PATH", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return (DATA_DIR / "shop.db").resolve()
+
+
+def database_needs_seed(path: Path) -> bool:
+    if not path.exists() or path.stat().st_size == 0:
+        return True
+    conn = sqlite3.connect(path)
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='shipments'"
+        ).fetchone()
+        return row is None
+    finally:
+        conn.close()
+
+
+def apply_seed_sql(db_path: Path) -> None:
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    seed_file = DATA_DIR / "seed.sql"
+    if not seed_file.is_file():
+        raise RuntimeError(f"seed.sql not found at {seed_file}")
+    sql = seed_file.read_text(encoding="utf-8")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executescript(sql)
+        conn.commit()
+    finally:
+        conn.close()
+
 
 app = FastAPI(title="Shop API")
 app.add_middleware(
@@ -40,7 +76,7 @@ class CreateOrderIn(BaseModel):
 
 
 def db_connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(resolve_db_path())
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -80,6 +116,9 @@ def compute_late_probability(shipment: dict[str, Any], order: dict[str, Any]) ->
 
 @app.on_event("startup")
 def on_startup() -> None:
+    db_path = resolve_db_path()
+    if database_needs_seed(db_path):
+        apply_seed_sql(db_path)
     ensure_scoring_column()
 
 
