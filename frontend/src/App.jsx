@@ -1,15 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { api } from "./api.js";
 
 const customerTabs = ["dashboard", "order-history", "new-order"];
-
-async function api(path, opts) {
-  const response = await fetch(`/api${path}`, opts);
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || "Request failed");
-  }
-  return response.json();
-}
 
 function App() {
   const [page, setPage] = useState("home");

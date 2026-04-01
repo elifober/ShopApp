@@ -5,8 +5,9 @@ Apply seed.sql to shop.db in this same directory.
 Run from the backend folder:
   python data/seed.py
 
-Safe to run multiple times: uses CREATE IF NOT EXISTS and INSERT OR IGNORE for demo rows.
-For a full class dataset, copy your real shop.db into this folder (alongside seed.sql).
+seed.sql is a full SQLite dump (schema + data) generated from shop.db.
+To refresh seed.sql after replacing shop.db with your real database:
+  python data/export_seed.py
 """
 
 from __future__ import annotations
