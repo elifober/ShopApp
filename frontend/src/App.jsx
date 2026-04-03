@@ -11,9 +11,7 @@ function App() {
   const [tab, setTab] = useState("dashboard");
   const [dashboard, setDashboard] = useState(null);
   const [history, setHistory] = useState([]);
-  const [queue, setQueue] = useState([]);
   const [fraudQueue, setFraudQueue] = useState([]);
-  const [runStatus, setRunStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -37,19 +35,17 @@ function App() {
 
   useEffect(() => {
     async function loadInitial() {
-      const [c, p, q, fq] = await Promise.all([
+      const [c, p, fq] = await Promise.all([
         api("/customers"),
         api("/products"),
-        api("/warehouse/priority-queue"),
         api("/warehouse/fraud-predictions"),
       ]);
       setCustomers(c);
       setProducts(p);
-      setQueue(q);
       setFraudQueue(fq);
     }
 
-    loadInitial().catch((err) => setRunStatus(err.message));
+    loadInitial().catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -117,17 +113,6 @@ function App() {
     }
   }
 
-  async function runScoring() {
-    setRunStatus("Running scoring...");
-    try {
-      const result = await api("/scoring/run", { method: "POST" });
-      setQueue(result.queue);
-      setRunStatus(`Scored ${result.scored} shipments and refreshed top 50.`);
-    } catch (err) {
-      setRunStatus(err.message);
-    }
-  }
-
   return (
     <div className="app">
       <header>
@@ -156,7 +141,7 @@ function App() {
             </button>
             <button className="menu-tile" onClick={() => setPage("warehouse")}>
               <span className="menu-title">Warehouse</span>
-              <span className="menu-subtitle">Late delivery queue and scoring workflow.</span>
+              <span className="menu-subtitle">Fraud prediction queue and order monitoring.</span>
             </button>
           </div>
         </section>
@@ -415,72 +400,36 @@ function App() {
       )}
 
       {page === "warehouse" && (
-        <>
-          <section className="card">
-            <h2>Late Delivery Priority Queue (Top 50)</h2>
-            <button onClick={runScoring}>Run Scoring</button>
-            {runStatus && <p className="hint">{runStatus}</p>}
-            <table>
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Total</th>
-                  <th>Method</th>
-                  <th>Distance</th>
-                  <th>Promised</th>
-                  <th>Actual</th>
-                  <th>Predicted Late Probability</th>
+        <section className="card">
+          <h2>Fraud Prediction Priority Queue (Top 50)</h2>
+          <p className="hint">ML predictions updated daily. Orders ranked by fraud probability.</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Customer</th>
+                <th>Total</th>
+                <th>Payment</th>
+                <th>Fraud Probability</th>
+                <th>Flagged</th>
+                <th>Last Scored</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fraudQueue.map((row) => (
+                <tr key={row.order_id}>
+                  <td>{row.order_id}</td>
+                  <td>{row.customer_name}</td>
+                  <td>${Number(row.order_total).toFixed(2)}</td>
+                  <td>{row.payment_method}</td>
+                  <td>{(Number(row.fraud_probability) * 100).toFixed(2)}%</td>
+                  <td>{row.fraud_prediction ? "Yes" : "No"}</td>
+                  <td>{new Date(row.prediction_timestamp).toLocaleString()}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {queue.map((row) => (
-                  <tr key={row.order_id}>
-                    <td>{row.order_id}</td>
-                    <td>{row.customer_name}</td>
-                    <td>${Number(row.order_total).toFixed(2)}</td>
-                    <td>{row.shipping_method}</td>
-                    <td>{row.distance_band}</td>
-                    <td>{row.promised_days}</td>
-                    <td>{row.actual_days}</td>
-                    <td>{(Number(row.predicted_late_probability) * 100).toFixed(1)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-
-          <section className="card">
-            <h2>Fraud Risk Monitor (Top 50)</h2>
-            <p className="hint">ML predictions updated daily. Orders ranked by fraud probability.</p>
-            <table>
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Total</th>
-                  <th>Payment</th>
-                  <th>Fraud Probability</th>
-                  <th>Flagged</th>
-                  <th>Last Scored</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fraudQueue.map((row) => (
-                  <tr key={row.order_id}>
-                    <td>{row.order_id}</td>
-                    <td>{row.customer_name}</td>
-                    <td>${Number(row.order_total).toFixed(2)}</td>
-                    <td>{row.payment_method}</td>
-                    <td>{(Number(row.fraud_probability) * 100).toFixed(2)}%</td>
-                    <td>{row.fraud_prediction ? "Yes" : "No"}</td>
-                    <td>{new Date(row.prediction_timestamp).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        </>
+              ))}
+            </tbody>
+          </table>
+        </section>
       )}
     </div>
   );
