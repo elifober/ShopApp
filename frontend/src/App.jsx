@@ -12,6 +12,7 @@ function App() {
   const [dashboard, setDashboard] = useState(null);
   const [history, setHistory] = useState([]);
   const [fraudQueue, setFraudQueue] = useState([]);
+  const [scoringStatus, setScoringStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -110,6 +111,17 @@ function App() {
       setSaveStatus(err.message);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function runScoring() {
+    setScoringStatus("Refreshing fraud predictions...");
+    try {
+      const fresh = await api("/warehouse/fraud-predictions");
+      setFraudQueue(fresh);
+      setScoringStatus(`Refreshed — showing top ${fresh.length} orders by fraud probability.`);
+    } catch (err) {
+      setScoringStatus(err.message);
     }
   }
 
@@ -402,6 +414,8 @@ function App() {
       {page === "warehouse" && (
         <section className="card">
           <h2>Fraud Prediction Priority Queue (Top 50)</h2>
+          <button onClick={runScoring}>Run Scoring</button>
+          {scoringStatus && <p className="hint">{scoringStatus}</p>}
           <p className="hint">ML predictions updated daily. Orders ranked by fraud probability.</p>
           <table>
             <thead>
