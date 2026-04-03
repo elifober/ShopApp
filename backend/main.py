@@ -196,9 +196,12 @@ def get_order_history(customer_id: int) -> list[dict[str, Any]]:
           s.distance_band,
           s.promised_days,
           s.actual_days,
-          s.late_delivery
+          s.late_delivery,
+          COALESCE(p.fraud_probability, 0) AS fraud_probability,
+          COALESCE(p.fraud_prediction, 0) AS fraud_prediction
         FROM orders o
         LEFT JOIN shipments s ON s.order_id = o.order_id
+        LEFT JOIN order_predictions p ON p.order_id = o.order_id
         WHERE o.customer_id = %s
         ORDER BY o.order_datetime DESC
         """,
@@ -398,3 +401,25 @@ def run_scoring() -> dict[str, Any]:
         """
     )
     return {"scored": len(rows), "queue": queue}
+
+
+@app.get("/api/warehouse/fraud-predictions")
+def get_fraud_predictions() -> list[dict[str, Any]]:
+    return db_query(
+        """
+        SELECT
+          o.order_id,
+          o.order_datetime,
+          c.full_name AS customer_name,
+          o.order_total,
+          o.payment_method,
+          p.fraud_probability,
+          p.fraud_prediction,
+          p.prediction_timestamp
+        FROM order_predictions p
+        JOIN orders o ON o.order_id = p.order_id
+        JOIN customers c ON c.customer_id = o.customer_id
+        ORDER BY p.fraud_probability DESC, o.order_datetime DESC
+        LIMIT 50
+        """
+    )
